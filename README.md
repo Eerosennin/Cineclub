@@ -1,4 +1,4 @@
-# 🎞️ CineClube ISUTC — Explorador de Filmes
+# 🎞️ CineClube — Explorador de Filmes
 
 Aplicação Web em **Vue.js 3** para explorar uma base de dados de filmes, pensada para o
 cineclube universitário do ISUTC e para estudantes que procuram um filme para o fim-de-semana.
