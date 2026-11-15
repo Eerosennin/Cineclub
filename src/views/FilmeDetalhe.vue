@@ -76,12 +76,12 @@ onMounted(async () => {
         <dl class="ficha">
           <div><dt>Ano</dt><dd>{{ filme.ano || '—' }}</dd></div>
           <div><dt>Duração</dt><dd>{{ duracaoTexto(filme.duracao) }}</dd></div>
-          <div><dt>Realização</dt><dd>{{ filme.realizador || '—' }}</dd></div>
+          <div><dt>{{ filme.fonte === 'tvmaze' ? 'Canal' : 'Realização' }}</dt><dd>{{ filme.realizador || '—' }}</dd></div>
           <div v-if="filme.produtor"><dt>Produção</dt><dd>{{ filme.produtor }}</dd></div>
           <div><dt>Classificação</dt><dd>★ {{ filme.nota.toFixed(1) }} <small>({{ filme.notaTexto }})</small></dd></div>
         </dl>
 
-        <h2>Sinopse <small v-if="filme.fonte === 'ghibli'" class="nota-pequena">(original em inglês)</small></h2>
+        <h2>Sinopse <small v-if="filme.fonte !== 'tmdb'" class="nota-pequena">(original em inglês)</small></h2>
         <p class="sinopse">{{ filme.sinopse }}</p>
 
         <div class="accoes">

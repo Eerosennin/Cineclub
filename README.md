@@ -4,7 +4,7 @@ Aplicação Web em **Vue.js 3** para explorar uma base de dados de filmes, pensa
 cineclube universitário do ISUTC e para estudantes que procuram um filme para o fim-de-semana.
 
 Trabalho de reposição de avaliação — Programação Web II, LECC31, 2026 (Docente: Ivan Ruby).
-Autor: Kenneth Dembele.
+Discente: Ivan jaime Antonio
 
 ## Funcionalidades
 

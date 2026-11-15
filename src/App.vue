@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useFavoritos } from './composables/useFavoritos'
-import { fonteActual } from './services/api'
+import { fonteActual, FONTES } from './services/api'
 
 const { favoritos } = useFavoritos()
 const route = useRoute()
@@ -16,7 +16,7 @@ const fonte = computed(() => (route.fullPath, fonteActual()))
       <RouterLink to="/" class="marca">
         <span class="marca-icone">🎞️</span>
         <span>
-          <strong>CineClube ISUTC</strong>
+          <strong>CineClube</strong>
           <small>Explorador de Filmes</small>
         </span>
       </RouterLink>
@@ -46,10 +46,10 @@ const fonte = computed(() => (route.fullPath, fonteActual()))
         — este produto usa a API da TMDB mas não é endossado nem certificado pela TMDB.
       </template>
       <template v-else>
-        <a href="https://ghibliapi.vercel.app/" target="_blank" rel="noopener">Studio Ghibli API</a>
+        <a :href="FONTES[fonte].url" target="_blank" rel="noopener">{{ FONTES[fonte].nome }}</a>
         (pública, sem chave).
       </template>
-      <br />Programação Web II · LECC31 · ISUTC 2026 · Kenneth Dembele
+      <br />Programação Web II · LECC31 · ISUTC 2026 · Ivan Jaime António
     </div>
   </footer>
 </template>

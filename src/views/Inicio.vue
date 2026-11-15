@@ -2,7 +2,7 @@
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import CartaoFilme from '../components/CartaoFilme.vue'
-import { procurarFilmes, listarGeneros, listarRealizadores, fonteActual } from '../services/api'
+import { procurarFilmes, listarGeneros, listarRealizadores, fonteActual, FONTES } from '../services/api'
 
 const route = useRoute()
 const router = useRouter()
@@ -31,7 +31,7 @@ const ordens = computed(() => [
   { v: 'nota-desc', t: 'Melhor classificação' },
   { v: 'nota-asc', t: 'Pior classificação' },
   { v: 'titulo-asc', t: 'Título (A–Z)' },
-  ...(fonte === 'ghibli' ? [{ v: 'duracao-asc', t: 'Mais curtos' }] : []),
+  ...(fonte !== 'tmdb' ? [{ v: 'duracao-asc', t: 'Mais curtos' }] : []),
 ])
 
 const nFiltrosActivos = computed(
@@ -46,6 +46,13 @@ const atalhos = computed(() =>
         { t: '🆕 Estreias recentes', f: { ordem: 'popular', anoMin: String(new Date().getFullYear() - 1) } },
         { t: '😂 Comédia para o fim-de-semana', f: { genero: '35', ordem: 'popular', notaMin: '6.5' } },
         { t: '🎨 Animação', f: { genero: '16', ordem: 'nota-desc' } },
+      ]
+    : fonte === 'tvmaze'
+    ? [
+        { t: '🏆 Séries mais bem avaliadas', f: { ordem: 'nota-desc', notaMin: '8' } },
+        { t: '🔪 Crime', f: { genero: 'Crime', ordem: 'nota-desc' } },
+        { t: '😂 Comédia', f: { genero: 'Comédia', ordem: 'nota-desc' } },
+        { t: '⏱️ Episódios curtos (≤ 30 min)', f: { duracaoMax: '30', ordem: 'nota-desc' } },
       ]
     : [
         { t: '🏆 Os mais aclamados', f: { ordem: 'nota-desc', notaMin: '9.5' } },
@@ -144,7 +151,7 @@ onMounted(async () => {
     <p>
       Explore, pesquise e filtre filmes para o cineclube ou para o seu fim-de-semana.
       <span class="etiqueta-fonte">
-        Fonte: {{ fonte === 'tmdb' ? 'TMDB (catálogo completo)' : 'Studio Ghibli API' }}
+        Fonte: {{ FONTES[fonte].curto }}
       </span>
     </p>
 
@@ -152,7 +159,7 @@ onMounted(async () => {
       <input
         v-model="pesquisa"
         type="search"
-        :placeholder="fonte === 'tmdb' ? 'Pesquisar por título…' : 'Pesquisar por título ou realizador…'"
+        :placeholder="fonte === 'ghibli' ? 'Pesquisar por título ou realizador…' : 'Pesquisar por título…'"
         aria-label="Pesquisar filme"
       />
       <button type="submit" class="btn primario">Pesquisar</button>
@@ -202,10 +209,12 @@ onMounted(async () => {
         </select>
       </label>
 
-      <label v-if="fonte === 'ghibli'">
+      <label v-if="fonte !== 'tmdb'">
         Duração máxima
         <select v-model="filtros.duracaoMax" @change="aplicar()">
           <option value="">Qualquer</option>
+          <option v-if="fonte === 'tvmaze'" value="30">até 30 min</option>
+          <option v-if="fonte === 'tvmaze'" value="60">até 60 min</option>
           <option value="90">até 90 min</option>
           <option value="110">até 110 min</option>
           <option value="130">até 130 min</option>

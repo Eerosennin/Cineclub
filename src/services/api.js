@@ -1,17 +1,26 @@
 // Camada de acesso a dados.
-// Duas fontes possíveis, ambas convertidas para o mesmo formato de "filme":
+// Três fontes possíveis, todas convertidas para o mesmo formato de "filme":
 //  - Studio Ghibli API (pública, sem chave) — fonte por omissão
-//  - TMDB (The Movie Database) — activa quando o utilizador guarda uma chave nas Definições
+//  - TVMaze (pública, sem chave) — milhares de séries de TV
+//  - TMDB (The Movie Database) — exige uma chave guardada nas Definições
 //
 // Formato normalizado:
 // { id, titulo, tituloOriginal, ano, realizador, nota (0–10), duracao (min),
 //   poster, banner, sinopse, generos: [nomes], fonte }
 
 const GHIBLI = 'https://ghibliapi.vercel.app'
+const TVMAZE = 'https://api.tvmaze.com'
 const TMDB = 'https://api.themoviedb.org/3'
 const TMDB_IMG = 'https://image.tmdb.org/t/p'
 
 const CHAVE_STORAGE = 'cineclube.tmdbKey'
+const FONTE_STORAGE = 'cineclube.fonte'
+
+export const FONTES = {
+  ghibli: { nome: 'Studio Ghibli API', curto: 'Studio Ghibli API', url: 'https://ghibliapi.vercel.app/' },
+  tvmaze: { nome: 'TVMaze (séries de TV)', curto: 'TVMaze (séries)', url: 'https://www.tvmaze.com/api' },
+  tmdb: { nome: 'The Movie Database (TMDB)', curto: 'TMDB (catálogo completo)', url: 'https://www.themoviedb.org/' },
+}
 
 /* ---------------- Configuração da fonte ---------------- */
 
@@ -32,7 +41,24 @@ export function setTmdbKey(chave) {
   }
 }
 
+export function setFonte(fonte) {
+  try {
+    localStorage.setItem(FONTE_STORAGE, fonte)
+  } catch {
+    /* ignora */
+  }
+}
+
 export function fonteActual() {
+  let escolhida = ''
+  try {
+    escolhida = localStorage.getItem(FONTE_STORAGE) || ''
+  } catch {
+    /* ignora */
+  }
+  if (escolhida === 'tmdb' && !getTmdbKey()) escolhida = ''
+  if (FONTES[escolhida]) return escolhida
+  // compatibilidade: quem já tinha chave TMDB continua na TMDB
   return getTmdbKey() ? 'tmdb' : 'ghibli'
 }
 
@@ -76,6 +102,75 @@ async function ghibliTodos() {
     cacheGhibli = dados.map(normalizarGhibli)
   }
   return cacheGhibli
+}
+
+/* ---------------- TVMaze ---------------- */
+
+let cacheTvmaze = null
+const PAGINAS_TVMAZE = 4 // 4 × 250 séries carregadas para navegação
+
+const GENEROS_PT = {
+  Action: 'Acção', Adventure: 'Aventura', Anime: 'Anime', Comedy: 'Comédia', Crime: 'Crime',
+  Drama: 'Drama', Espionage: 'Espionagem', Family: 'Família', Fantasy: 'Fantasia', History: 'História',
+  Horror: 'Terror', Legal: 'Jurídico', Medical: 'Médico', Music: 'Música', Mystery: 'Mistério',
+  Romance: 'Romance', 'Science-Fiction': 'Ficção científica', Sports: 'Desporto', Supernatural: 'Sobrenatural',
+  Thriller: 'Thriller', War: 'Guerra', Western: 'Western', Children: 'Infantil', Food: 'Culinária',
+  Nature: 'Natureza', Travel: 'Viagens', DIY: 'Faça você mesmo',
+}
+
+function normalizarTvmaze(s) {
+  const nota = s.rating?.average || 0
+  return {
+    id: String(s.id),
+    titulo: s.name,
+    tituloOriginal: s.name,
+    ano: s.premiered ? Number(s.premiered.slice(0, 4)) : null,
+    realizador: s.network?.name || s.webChannel?.name || '',
+    nota,
+    notaTexto: nota ? `${nota.toFixed(1)}/10 (TVMaze)` : 'Sem classificação',
+    duracao: s.averageRuntime || s.runtime || null,
+    poster: s.image?.medium || s.image?.original || '',
+    banner: s.image?.original || '',
+    sinopse: (s.summary || '').replace(/<[^>]+>/g, '') || 'Sinopse não disponível.',
+    generos: (s.genres || []).map((g) => GENEROS_PT[g] || g),
+    fonte: 'tvmaze',
+    elenco: (s._embedded?.cast || []).slice(0, 8).map((c) => ({ nome: c.person.name, papel: c.character.name })),
+  }
+}
+
+async function tvmazeTodos() {
+  if (!cacheTvmaze) {
+    const paginas = await Promise.all(
+      Array.from({ length: PAGINAS_TVMAZE }, (_, i) => pedir(`${TVMAZE}/shows?page=${i}`).catch(() => [])),
+    )
+    cacheTvmaze = paginas.flat().map(normalizarTvmaze)
+  }
+  return cacheTvmaze
+}
+
+async function procurarTvmaze(f) {
+  let lista
+  if (f.q) {
+    const dados = await pedir(`${TVMAZE}/search/shows?q=${encodeURIComponent(f.q)}`)
+    lista = dados.map((d) => normalizarTvmaze(d.show))
+  } else {
+    lista = await tvmazeTodos()
+  }
+  if (f.genero) lista = lista.filter((x) => x.generos.includes(f.genero))
+  if (f.anoMin) lista = lista.filter((x) => x.ano && x.ano >= Number(f.anoMin))
+  if (f.anoMax) lista = lista.filter((x) => x.ano && x.ano <= Number(f.anoMax))
+  if (f.notaMin) lista = lista.filter((x) => x.nota >= Number(f.notaMin))
+  if (f.duracaoMax) lista = lista.filter((x) => x.duracao && x.duracao <= Number(f.duracaoMax))
+  if (!f.q || f.ordem) lista = ordenar(lista, f.ordem || 'nota-desc')
+  return paginar(lista, f.pagina, 24)
+}
+
+function paginar(lista, paginaPedida, porPagina) {
+  const total = lista.length
+  const totalPaginas = Math.max(1, Math.ceil(total / porPagina))
+  const pagina = Math.min(Math.max(1, Number(paginaPedida) || 1), totalPaginas)
+  const inicio = (pagina - 1) * porPagina
+  return { filmes: lista.slice(inicio, inicio + porPagina), pagina, totalPaginas, total }
 }
 
 /* ---------------- TMDB ---------------- */
@@ -131,13 +226,18 @@ function normalizarTmdb(f, generos = []) {
   }
 }
 
-/* ---------------- API pública da app ---------------- */
 
-/** Lista de géneros disponíveis (só a TMDB tem géneros variados). */
+
+/** Lista de generos disponíveis (so a TMDB tem generos variados). */
 export async function listarGeneros() {
   if (fonteActual() === 'tmdb') {
     const g = await tmdbGenerosMapa()
     return g.map((x) => ({ id: String(x.id), nome: x.name }))
+  }
+  if (fonteActual() === 'tvmaze') {
+    const todos = await tvmazeTodos()
+    const nomes = [...new Set(todos.flatMap((x) => x.generos))].sort((a, b) => a.localeCompare(b))
+    return nomes.map((n) => ({ id: n, nome: n }))
   }
   return []
 }
@@ -155,7 +255,10 @@ export async function listarRealizadores() {
  * Devolve { filmes, pagina, totalPaginas, total }
  */
 export async function procurarFilmes(filtros) {
-  return fonteActual() === 'tmdb' ? procurarTmdb(filtros) : procurarGhibli(filtros)
+  const fonte = fonteActual()
+  if (fonte === 'tmdb') return procurarTmdb(filtros)
+  if (fonte === 'tvmaze') return procurarTvmaze(filtros)
+  return procurarGhibli(filtros)
 }
 
 const POR_PAGINA_GHIBLI = 12
@@ -195,11 +298,7 @@ async function procurarGhibli(f) {
   if (f.duracaoMax) lista = lista.filter((x) => x.duracao <= Number(f.duracaoMax))
   lista = ordenar(lista, f.ordem || 'ano-desc')
 
-  const total = lista.length
-  const totalPaginas = Math.max(1, Math.ceil(total / POR_PAGINA_GHIBLI))
-  const pagina = Math.min(Math.max(1, Number(f.pagina) || 1), totalPaginas)
-  const inicio = (pagina - 1) * POR_PAGINA_GHIBLI
-  return { filmes: lista.slice(inicio, inicio + POR_PAGINA_GHIBLI), pagina, totalPaginas, total }
+  return paginar(lista, f.pagina, POR_PAGINA_GHIBLI)
 }
 
 const ORDEM_TMDB = {
@@ -262,6 +361,9 @@ export async function obterFilme(id, fonte = fonteActual()) {
   if (fonte === 'tmdb') {
     const f = await tmdbPedir(`/movie/${id}`, { append_to_response: 'credits,videos' })
     return normalizarTmdb(f)
+  }
+  if (fonte === 'tvmaze') {
+    return normalizarTvmaze(await pedir(`${TVMAZE}/shows/${id}?embed=cast`))
   }
   const todos = await ghibliTodos()
   let filme = todos.find((x) => x.id === id)
